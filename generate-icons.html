@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>WebScribe Icon Generator</title>
+    <style>
+        body {
+            background: #0d0f1a;
+            color: #e2e8f0;
+            font-family: system-ui;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px;
+            gap: 20px;
+        }
+
+        canvas {
+            border-radius: 12px;
+            border: 1px solid rgba(129, 140, 248, 0.3);
+        }
+
+        .row {
+            display: flex;
+            gap: 20px;
+            align-items: flex-end;
+        }
+
+        p {
+            font-size: 11px;
+            color: #64748b;
+            text-align: center;
+        }
+
+        a {
+            color: #818cf8;
+        }
+
+        button {
+            margin-top: 20px;
+            background: linear-gradient(135deg, #818cf8, #a78bfa);
+            border: none;
+            color: #fff;
+            padding: 12px 28px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+    <h2
+        style="background:linear-gradient(135deg,#818cf8,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent">
+        WebScribe Icon Generator</h2>
+    <div class="row" id="canvases"></div>
+    <button onclick="downloadAll()">⬇ Download All Icons</button>
+    <p>Save each file as <code>assets/icon16.png</code>, <code>icon32.png</code>, <code>icon48.png</code>,
+        <code>icon128.png</code></p>
+
+    <script>
+        const sizes = [16, 32, 48, 128];
+        const canvasMap = {};
+
+        function drawIcon(canvas) {
+            const size = canvas.width;
+            const ctx = canvas.getContext('2d');
+
+            // Background
+            const r = size * 0.22;
+            function roundRect(x, y, w, h) {
+                ctx.beginPath();
+                ctx.moveTo(x + r, y);
+                ctx.lineTo(x + w - r, y);
+                ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+                ctx.lineTo(x + w, y + h - r);
+                ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+                ctx.lineTo(x + r, y + h);
+                ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+                ctx.lineTo(x, y + r);
+                ctx.quadraticCurveTo(x, y, x + r, y);
+                ctx.closePath();
+            }
+
+            roundRect(0, 0, size, size);
+            const bgGrad = ctx.createLinearGradient(0, 0, size, size);
+            bgGrad.addColorStop(0, '#1e1b4b');
+            bgGrad.addColorStop(1, '#13162a');
+            ctx.fillStyle = bgGrad;
+            ctx.fill();
+
+            // Glow
+            roundRect(0, 0, size, size);
+            const glow = ctx.createRadialGradient(size * 0.3, size * 0.25, 0, size * 0.5, size * 0.5, size * 0.7);
+            glow.addColorStop(0, 'rgba(129,140,248,0.3)');
+            glow.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = glow;
+            ctx.fill();
+
+            // Icon: layered pages
+            const cx = size / 2;
+            const cy = size / 2;
+            const layerGrad = ctx.createLinearGradient(0, 0, size, size);
+            layerGrad.addColorStop(0, '#818cf8');
+            layerGrad.addColorStop(1, '#a78bfa');
+
+            const hw = size * 0.53;
+            const hh = size * 0.14;
+            const gap = size * 0.14;
+
+            [[-gap, 0.45], [0, 1.0], [gap, 0.45]].forEach(([offset, alpha]) => {
+                ctx.globalAlpha = alpha;
+                ctx.beginPath();
+                ctx.ellipse(cx, cy + offset, hw, hh, 0, 0, Math.PI * 2);
+                ctx.fillStyle = layerGrad;
+                ctx.fill();
+            });
+
+            ctx.globalAlpha = 1;
+
+            // Pen stroke on top layer
+            if (size >= 32) {
+                ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+                ctx.lineWidth = size * 0.055;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(cx - hw * 0.45, cy - size * 0.02);
+                ctx.lineTo(cx + hw * 0.3, cy - size * 0.02);
+                ctx.stroke();
+                if (size >= 48) {
+                    ctx.beginPath();
+                    ctx.moveTo(cx - hw * 0.45, cy + size * 0.09);
+                    ctx.lineTo(cx + hw * 0.05, cy + size * 0.09);
+                    ctx.stroke();
+                }
+            }
+        }
+
+        const row = document.getElementById('canvases');
+        sizes.forEach((s) => {
+            const wrap = document.createElement('div');
+            wrap.style.textAlign = 'center';
+            const canvas = document.createElement('canvas');
+            canvas.width = s;
+            canvas.height = s;
+            canvas.style.width = Math.max(s, 48) + 'px';
+            canvas.style.height = Math.max(s, 48) + 'px';
+            canvas.style.imageRendering = 'pixelated';
+            drawIcon(canvas);
+            canvasMap[s] = canvas;
+            const label = document.createElement('p');
+            label.textContent = s + '×' + s;
+            label.style.marginTop = '6px';
+            wrap.appendChild(canvas);
+            wrap.appendChild(label);
+            row.appendChild(wrap);
+        });
+
+        function downloadAll() {
+            sizes.forEach((s) => {
+                const a = document.createElement('a');
+                a.download = `icon${s}.png`;
+                a.href = canvasMap[s].toDataURL('image/png');
+                a.click();
+            });
+        }
+    </script>
+</body>
+
+</html>

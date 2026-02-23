@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>WebScribe – PDF Preview</title>
+    <style>
+        /* ── PRINT-READY STYLESHEET ── */
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: Georgia, 'Times New Roman', serif;
+            font-size: 11pt;
+            line-height: 1.8;
+            color: #111;
+            background: #fff;
+        }
+
+        /* ── On-screen wrapper ── */
+        .page {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 48px 56px;
+        }
+
+        /* ── Print bar (screen only) ── */
+        .print-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: #1e1b4b;
+            color: #e0e7ff;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 20px;
+            font-family: system-ui, sans-serif;
+            font-size: 13px;
+            z-index: 9999;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+        }
+
+        .print-bar strong {
+            color: #a5b4fc;
+        }
+
+        .print-btn {
+            background: linear-gradient(135deg, #818cf8, #a78bfa);
+            color: #fff;
+            border: none;
+            padding: 7px 18px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: system-ui, sans-serif;
+        }
+
+        .print-btn:hover {
+            filter: brightness(1.1);
+        }
+
+        @media print {
+            .print-bar {
+                display: none !important;
+            }
+
+            .page {
+                padding: 16px 20px;
+                max-width: 100%;
+            }
+
+            body {
+                font-size: 10.5pt;
+            }
+        }
+
+        /* ── Document header ── */
+        .doc-header {
+            border-bottom: 2px solid #e0e7ff;
+            padding-bottom: 18px;
+            margin-bottom: 28px;
+            margin-top: 20px;
+        }
+
+        .doc-badge {
+            display: inline-block;
+            font-size: 8pt;
+            font-weight: 700;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: #6366f1;
+            background: #eef2ff;
+            padding: 3px 10px;
+            border-radius: 100px;
+            margin-bottom: 10px;
+            font-family: system-ui, sans-serif;
+        }
+
+        .doc-title {
+            font-size: 22pt;
+            font-weight: 700;
+            font-family: system-ui, sans-serif;
+            color: #111;
+            margin-bottom: 8px;
+            line-height: 1.2;
+        }
+
+        .doc-meta {
+            font-size: 9pt;
+            color: #6b7280;
+            font-family: system-ui, sans-serif;
+        }
+
+        .doc-meta a {
+            color: #6366f1;
+            text-decoration: none;
+        }
+
+        /* ── TOC ── */
+        .toc {
+            background: #f8fafc;
+            border-left: 3px solid #818cf8;
+            padding: 14px 18px;
+            margin: 20px 0 28px;
+            border-radius: 0 8px 8px 0;
+            font-family: system-ui, sans-serif;
+        }
+
+        .toc-label {
+            font-size: 8pt;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: #818cf8;
+            margin-bottom: 8px;
+        }
+
+        .toc-item {
+            display: block;
+            font-size: 10pt;
+            color: #374151;
+            text-decoration: none;
+            margin-bottom: 3px;
+        }
+
+        .toc-item:hover {
+            color: #6366f1;
+        }
+
+        /* ── AI block ── */
+        .ai-block {
+            background: linear-gradient(135deg, #f0f4ff, #faf5ff);
+            border: 1px solid #c7d2fe;
+            border-radius: 10px;
+            padding: 18px 22px;
+            margin: 20px 0;
+            font-family: system-ui, sans-serif;
+        }
+
+        .ai-block h2 {
+            font-size: 11pt;
+            color: #6366f1;
+            margin-bottom: 10px;
+        }
+
+        .ai-block h3 {
+            font-size: 8.5pt;
+            text-transform: uppercase;
+            letter-spacing: .06em;
+            color: #818cf8;
+            margin: 10px 0 5px;
+        }
+
+        .ai-block p {
+            font-size: 10pt;
+            color: #374151;
+            line-height: 1.6;
+        }
+
+        .ai-block ul {
+            padding-left: 18px;
+        }
+
+        .ai-block li {
+            font-size: 10pt;
+            color: #374151;
+            margin-bottom: 3px;
+        }
+
+        /* ── Content ── */
+        h1 {
+            font-size: 18pt;
+            font-weight: 700;
+            color: #111;
+            margin: 26px 0 10px;
+            line-height: 1.2;
+        }
+
+        h2 {
+            font-size: 14pt;
+            font-weight: 700;
+            color: #1e293b;
+            margin: 22px 0 8px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        h3 {
+            font-size: 12pt;
+            font-weight: 600;
+            color: #334155;
+            margin: 16px 0 6px;
+        }
+
+        h4 {
+            font-size: 11pt;
+            font-weight: 600;
+            color: #475569;
+            margin: 12px 0 5px;
+        }
+
+        h5,
+        h6 {
+            font-size: 10.5pt;
+            font-weight: 600;
+            color: #64748b;
+            margin: 10px 0 4px;
+        }
+
+        p {
+            margin: 0 0 12px;
+            color: #1f2937;
+        }
+
+        ul,
+        ol {
+            padding-left: 24px;
+            margin: 0 0 12px;
+        }
+
+        li {
+            margin-bottom: 5px;
+            color: #1f2937;
+        }
+
+        pre {
+            background: #0f172a;
+            color: #e2e8f0;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 9pt;
+            padding: 16px 18px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 14px 0;
+            line-height: 1.55;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        code {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 9pt;
+            background: #f1f5f9;
+            color: #6366f1;
+            padding: 2px 5px;
+            border-radius: 4px;
+        }
+
+        pre code {
+            background: none;
+            color: inherit;
+            padding: 0;
+            font-size: inherit;
+        }
+
+        blockquote {
+            border-left: 4px solid #818cf8;
+            margin: 14px 0;
+            padding: 10px 16px;
+            background: #f8f9ff;
+            color: #475569;
+            border-radius: 0 6px 6px 0;
+            font-style: italic;
+        }
+
+        img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 6px;
+            margin: 12px 0;
+            display: block;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 14px 0;
+            font-size: 10pt;
+            font-family: system-ui, sans-serif;
+        }
+
+        th {
+            background: #f1f5f9;
+            font-weight: 600;
+            padding: 8px 12px;
+            text-align: left;
+            border: 1px solid #e2e8f0;
+        }
+
+        td {
+            padding: 7px 12px;
+            border: 1px solid #e2e8f0;
+        }
+
+        tr:nth-child(even) td {
+            background: #f8fafc;
+        }
+
+        hr {
+            border: none;
+            border-top: 1px solid #e2e8f0;
+            margin: 22px 0;
+        }
+
+        .source-footer {
+            margin-top: 32px;
+            padding-top: 14px;
+            border-top: 1px solid #e2e8f0;
+            font-size: 8.5pt;
+            color: #9ca3af;
+            font-family: system-ui, sans-serif;
+        }
+
+        /* ── Loading / Error states ── */
+        .state-box {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6b7280;
+            font-family: system-ui, sans-serif;
+        }
+
+        .state-box h2 {
+            font-size: 18px;
+            margin-bottom: 10px;
+            color: #374151;
+        }
+
+        .state-box p {
+            font-size: 14px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Print bar (only visible on screen) -->
+    <div class="print-bar">
+        <span>📄 <strong>WebScribe</strong> – PDF Preview</span>
+        <button class="print-btn" onclick="window.print()">🖨 Save as PDF (Ctrl+P)</button>
+    </div>
+
+    <!-- Content will be injected here -->
+    <div class="page" id="page">
+        <div class="state-box" id="loadingState">
+            <h2>⏳ Loading your notes…</h2>
+            <p>Preparing extracted content for PDF export.</p>
+        </div>
+    </div>
+
+    <script>
+        // Read extracted content from chrome.storage.local
+        chrome.storage.local.get('webscribe_data', function (result) {
+            const data = result.webscribe_data;
+            if (!data || !data.nodes) {
+                document.getElementById('loadingState').innerHTML =
+                    '<h2>⚠️ No content found</h2><p>Close this tab, go back to the page, and click WebScribe again.</p>';
+                return;
+            }
+
+            // Clear loading state and render
+            const page = document.getElementById('page');
+            page.innerHTML = buildPageHTML(data);
+
+            // Clean up storage
+            chrome.storage.local.remove('webscribe_data');
+        });
+
+        function escH(str) {
+            return String(str || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function slugify(text) {
+            return String(text).toLowerCase()
+                .replace(/[^\w\s-]/g, '')
+                .replace(/\s+/g, '-')
+                .replace(/-+/g, '-').trim();
+        }
+
+        function buildPageHTML(data) {
+            const { metadata, nodes, options } = data;
+            const parts = [];
+
+            // Header
+            parts.push(
+                '<div class="doc-header">' +
+                '<div class="doc-badge">WebScribe Notes</div>' +
+                '<div class="doc-title">' + escH(metadata.title) + '</div>' +
+                '<div class="doc-meta">Source: <a href="' + escH(metadata.url) + '">' + escH(metadata.url.slice(0, 80)) + '</a> &nbsp;·&nbsp; ' + escH(metadata.date) + '</div>' +
+                '</div>'
+            );
+
+            // AI block
+            if (options && options.includeAI && options.aiData) {
+                parts.push(buildAIBlock(options.aiData));
+            }
+
+            // TOC
+            const headings = nodes.filter(function (n) { return n.type === 'heading'; });
+            if (options && options.includeTOC && headings.length > 2) {
+                parts.push(buildTOC(headings));
+            }
+
+            // Nodes
+            nodes.forEach(function (node) {
+                const html = nodeToHTML(node, options && options.includeImages !== false);
+                if (html) parts.push(html);
+            });
+
+            // Footer
+            parts.push(
+                '<div class="source-footer">Saved with WebScribe · ' + escH(metadata.date) + ' · <a href="' + escH(metadata.url) + '">' + escH(metadata.title) + '</a></div>'
+            );
+
+            return parts.join('\n');
+        }
+
+        function buildAIBlock(ai) {
+            var h = '<div class="ai-block"><h2>✨ AI-Generated Notes</h2>';
+            if (ai.summary) h += '<h3>Summary</h3><p>' + escH(ai.summary) + '</p>';
+            if (ai.keyPoints && ai.keyPoints.length) {
+                h += '<h3>Key Points</h3><ul>';
+                ai.keyPoints.forEach(function (p) { h += '<li>' + escH(p) + '</li>'; });
+                h += '</ul>';
+            }
+            if (ai.definitions && ai.definitions.length) {
+                h += '<h3>Key Terms</h3><ul>';
+                ai.definitions.forEach(function (d) { h += '<li><strong>' + escH(d[0]) + '</strong>: ' + escH(d[1]) + '</li>'; });
+                h += '</ul>';
+            }
+            return h + '</div>';
+        }
+
+        function buildTOC(headings) {
+            var h = '<div class="toc"><div class="toc-label">Contents</div>';
+            headings.forEach(function (heading) {
+                var indent = 'margin-left:' + ((heading.level - 1) * 16) + 'px';
+                var id = slugify(heading.text);
+                h += '<a class="toc-item" href="#' + id + '" style="' + indent + '">' + escH(heading.text) + '</a>';
+            });
+            return h + '</div>';
+        }
+
+        function nodeToHTML(node, includeImages) {
+            switch (node.type) {
+                case 'heading': {
+                    var tag = 'h' + node.level;
+                    var id = slugify(node.text);
+                    return '<' + tag + ' id="' + id + '">' + escH(node.text) + '</' + tag + '>';
+                }
+                case 'paragraph':
+                    return '<p>' + escH(node.text) + '</p>';
+                case 'list': {
+                    var tag2 = node.ordered ? 'ol' : 'ul';
+                    var items = node.items.map(function (i) { return '<li>' + escH(i) + '</li>'; }).join('');
+                    return '<' + tag2 + '>' + items + '</' + tag2 + '>';
+                }
+                case 'code':
+                    return '<pre><code>' + escH(node.code) + '</code></pre>';
+                case 'blockquote':
+                    return '<blockquote>' + escH(node.text) + '</blockquote>';
+                case 'image':
+                    if (!includeImages) return '';
+                    return '<img src="' + escH(node.src) + '" alt="' + escH(node.alt || '') + '">';
+                case 'table':
+                    return buildTable(node.rows);
+                case 'hr':
+                    return '<hr>';
+                default:
+                    return '';
+            }
+        }
+
+        function buildTable(rows) {
+            if (!rows || !rows.length) return '';
+            var h = '<table><thead><tr>';
+            rows[0].forEach(function (c) { h += '<th>' + escH(c) + '</th>'; });
+            h += '</tr></thead><tbody>';
+            rows.slice(1).forEach(function (row) {
+                h += '<tr>';
+                row.forEach(function (c) { h += '<td>' + escH(c) + '</td>'; });
+                h += '</tr>';
+            });
+            return h + '</tbody></table>';
+        }
+    </script>
+</body>
+
+</html>
