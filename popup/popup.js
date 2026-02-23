@@ -151,42 +151,82 @@
         });
     }
 
-    // ── Script injection ──────────────────────────────────────────────────────
+    // ── Script injection into ALL frames ────────────────────────────────────────
+    // allFrames:true means we also inject into every iframe on the page —
+    // critical for copy-restricted sites that render content inside iframes.
     function injectScripts(tabId) {
         return new Promise(function (resolve) {
             chrome.scripting.executeScript(
                 {
-                    target: { tabId: tabId },
+                    target: { tabId: tabId, allFrames: true },
                     files: ['lib/Readability.js', 'content/content.js'],
                 },
                 function () {
                     if (chrome.runtime.lastError) {
-                        console.warn('[WebScribe] Injection warning:', chrome.runtime.lastError.message);
+                        console.warn('[WebScribe] Injection partial:', chrome.runtime.lastError.message);
                     }
-                    // Wait for listener to register
-                    setTimeout(resolve, 200);
+                    setTimeout(resolve, 250);
                 }
             );
         });
     }
 
-    // ── Send extract message to content script ────────────────────────────────
-    function extractFromTab(tabId) {
+    // ── Extract from ALL frames, pick the richest result ─────────────────────
+    async function extractFromTab(tabId) {
+        // Get all frames in this tab
+        const frames = await new Promise(function (resolve) {
+            chrome.webNavigation.getAllFrames({ tabId: tabId }, function (frames) {
+                if (chrome.runtime.lastError || !frames) resolve([{ frameId: 0 }]);
+                else resolve(frames);
+            });
+        }).catch(function () { return [{ frameId: 0 }]; });
+
+        console.log('[WebScribe Popup] Found', frames.length, 'frame(s)');
+
+        // Send extraction message to every frame concurrently
+        const results = await Promise.all(
+            frames.map(function (frame) {
+                return sendToFrame(tabId, frame.frameId, { type: 'DO_EXTRACT' });
+            })
+        );
+
+        // Keep only successful results with content
+        const valid = results.filter(function (r) { return r && r.success && r.nodes && r.nodes.length > 0; });
+        console.log('[WebScribe Popup] Valid frame results:', valid.length);
+
+        if (valid.length === 0) {
+            // Final fallback: try main frame with longer wait
+            await new Promise(function (r) { setTimeout(r, 800); });
+            const retry = await sendToFrame(tabId, 0, { type: 'DO_EXTRACT' });
+            if (retry && retry.success && retry.nodes && retry.nodes.length > 0) return retry;
+            return { success: false, error: 'Content extraction found no readable content. The page may require login or use canvas/DRM rendering that cannot be extracted.' };
+        }
+
+        if (valid.length === 1) return valid[0];
+
+        // Multiple frames had content — pick the one with most nodes,
+        // but prefer the main frame (frameId 0) if it's competitive
+        valid.sort(function (a, b) { return b.nodes.length - a.nodes.length; });
+        const mainFrame = valid.find(function (r) { return r.frameId === 0; });
+        const best = valid[0];
+
+        // Use main frame if it has at least 40% as many nodes as the best
+        if (mainFrame && mainFrame.nodes.length >= best.nodes.length * 0.4) {
+            console.log('[WebScribe Popup] Using main frame (' + mainFrame.nodes.length + ' nodes)');
+            return mainFrame;
+        }
+
+        console.log('[WebScribe Popup] Using best iframe (' + best.nodes.length + ' nodes)');
+        return best;
+    }
+
+    function sendToFrame(tabId, frameId, message) {
         return new Promise(function (resolve) {
-            chrome.tabs.sendMessage(tabId, { type: 'DO_EXTRACT' }, function (response) {
+            chrome.tabs.sendMessage(tabId, message, { frameId: frameId }, function (response) {
                 if (chrome.runtime.lastError) {
-                    // Retry once after a longer wait
-                    setTimeout(function () {
-                        chrome.tabs.sendMessage(tabId, { type: 'DO_EXTRACT' }, function (resp2) {
-                            if (chrome.runtime.lastError) {
-                                resolve({ success: false, error: 'Could not connect to the page content script. Reload the page and try again.' });
-                            } else {
-                                resolve(resp2);
-                            }
-                        });
-                    }, 400);
+                    resolve(null);
                 } else {
-                    resolve(response);
+                    resolve(Object.assign({}, response, { frameId: frameId }));
                 }
             });
         });

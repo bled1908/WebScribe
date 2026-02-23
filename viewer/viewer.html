@@ -5,7 +5,6 @@
     <meta charset="UTF-8">
     <title>WebScribe – PDF Preview</title>
     <style>
-        /* ── PRINT-READY STYLESHEET ── */
         *,
         *::before,
         *::after {
@@ -22,14 +21,13 @@
             background: #fff;
         }
 
-        /* ── On-screen wrapper ── */
         .page {
             max-width: 800px;
             margin: 0 auto;
             padding: 48px 56px;
         }
 
-        /* ── Print bar (screen only) ── */
+        /* Print bar — screen only */
         .print-bar {
             position: fixed;
             top: 0;
@@ -75,6 +73,7 @@
             .page {
                 padding: 16px 20px;
                 max-width: 100%;
+                margin-top: 0;
             }
 
             body {
@@ -82,12 +81,16 @@
             }
         }
 
-        /* ── Document header ── */
+        /* Push content below top bar */
+        .page {
+            margin-top: 52px;
+        }
+
+        /* Document header */
         .doc-header {
             border-bottom: 2px solid #e0e7ff;
             padding-bottom: 18px;
             margin-bottom: 28px;
-            margin-top: 20px;
         }
 
         .doc-badge {
@@ -124,7 +127,7 @@
             text-decoration: none;
         }
 
-        /* ── TOC ── */
+        /* TOC */
         .toc {
             background: #f8fafc;
             border-left: 3px solid #818cf8;
@@ -155,7 +158,7 @@
             color: #6366f1;
         }
 
-        /* ── AI block ── */
+        /* AI block */
         .ai-block {
             background: linear-gradient(135deg, #f0f4ff, #faf5ff);
             border: 1px solid #c7d2fe;
@@ -195,7 +198,7 @@
             margin-bottom: 3px;
         }
 
-        /* ── Content ── */
+        /* Content nodes */
         h1 {
             font-size: 18pt;
             font-weight: 700;
@@ -278,7 +281,6 @@
             background: none;
             color: inherit;
             padding: 0;
-            font-size: inherit;
         }
 
         blockquote {
@@ -339,7 +341,7 @@
             font-family: system-ui, sans-serif;
         }
 
-        /* ── Loading / Error states ── */
+        /* State boxes */
         .state-box {
             text-align: center;
             padding: 60px 20px;
@@ -361,13 +363,11 @@
 
 <body>
 
-    <!-- Print bar (only visible on screen) -->
     <div class="print-bar">
         <span>📄 <strong>WebScribe</strong> – PDF Preview</span>
         <button class="print-btn" onclick="window.print()">🖨 Save as PDF (Ctrl+P)</button>
     </div>
 
-    <!-- Content will be injected here -->
     <div class="page" id="page">
         <div class="state-box" id="loadingState">
             <h2>⏳ Loading your notes…</h2>
@@ -375,146 +375,8 @@
         </div>
     </div>
 
-    <script>
-        // Read extracted content from chrome.storage.local
-        chrome.storage.local.get('webscribe_data', function (result) {
-            const data = result.webscribe_data;
-            if (!data || !data.nodes) {
-                document.getElementById('loadingState').innerHTML =
-                    '<h2>⚠️ No content found</h2><p>Close this tab, go back to the page, and click WebScribe again.</p>';
-                return;
-            }
-
-            // Clear loading state and render
-            const page = document.getElementById('page');
-            page.innerHTML = buildPageHTML(data);
-
-            // Clean up storage
-            chrome.storage.local.remove('webscribe_data');
-        });
-
-        function escH(str) {
-            return String(str || '')
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;');
-        }
-
-        function slugify(text) {
-            return String(text).toLowerCase()
-                .replace(/[^\w\s-]/g, '')
-                .replace(/\s+/g, '-')
-                .replace(/-+/g, '-').trim();
-        }
-
-        function buildPageHTML(data) {
-            const { metadata, nodes, options } = data;
-            const parts = [];
-
-            // Header
-            parts.push(
-                '<div class="doc-header">' +
-                '<div class="doc-badge">WebScribe Notes</div>' +
-                '<div class="doc-title">' + escH(metadata.title) + '</div>' +
-                '<div class="doc-meta">Source: <a href="' + escH(metadata.url) + '">' + escH(metadata.url.slice(0, 80)) + '</a> &nbsp;·&nbsp; ' + escH(metadata.date) + '</div>' +
-                '</div>'
-            );
-
-            // AI block
-            if (options && options.includeAI && options.aiData) {
-                parts.push(buildAIBlock(options.aiData));
-            }
-
-            // TOC
-            const headings = nodes.filter(function (n) { return n.type === 'heading'; });
-            if (options && options.includeTOC && headings.length > 2) {
-                parts.push(buildTOC(headings));
-            }
-
-            // Nodes
-            nodes.forEach(function (node) {
-                const html = nodeToHTML(node, options && options.includeImages !== false);
-                if (html) parts.push(html);
-            });
-
-            // Footer
-            parts.push(
-                '<div class="source-footer">Saved with WebScribe · ' + escH(metadata.date) + ' · <a href="' + escH(metadata.url) + '">' + escH(metadata.title) + '</a></div>'
-            );
-
-            return parts.join('\n');
-        }
-
-        function buildAIBlock(ai) {
-            var h = '<div class="ai-block"><h2>✨ AI-Generated Notes</h2>';
-            if (ai.summary) h += '<h3>Summary</h3><p>' + escH(ai.summary) + '</p>';
-            if (ai.keyPoints && ai.keyPoints.length) {
-                h += '<h3>Key Points</h3><ul>';
-                ai.keyPoints.forEach(function (p) { h += '<li>' + escH(p) + '</li>'; });
-                h += '</ul>';
-            }
-            if (ai.definitions && ai.definitions.length) {
-                h += '<h3>Key Terms</h3><ul>';
-                ai.definitions.forEach(function (d) { h += '<li><strong>' + escH(d[0]) + '</strong>: ' + escH(d[1]) + '</li>'; });
-                h += '</ul>';
-            }
-            return h + '</div>';
-        }
-
-        function buildTOC(headings) {
-            var h = '<div class="toc"><div class="toc-label">Contents</div>';
-            headings.forEach(function (heading) {
-                var indent = 'margin-left:' + ((heading.level - 1) * 16) + 'px';
-                var id = slugify(heading.text);
-                h += '<a class="toc-item" href="#' + id + '" style="' + indent + '">' + escH(heading.text) + '</a>';
-            });
-            return h + '</div>';
-        }
-
-        function nodeToHTML(node, includeImages) {
-            switch (node.type) {
-                case 'heading': {
-                    var tag = 'h' + node.level;
-                    var id = slugify(node.text);
-                    return '<' + tag + ' id="' + id + '">' + escH(node.text) + '</' + tag + '>';
-                }
-                case 'paragraph':
-                    return '<p>' + escH(node.text) + '</p>';
-                case 'list': {
-                    var tag2 = node.ordered ? 'ol' : 'ul';
-                    var items = node.items.map(function (i) { return '<li>' + escH(i) + '</li>'; }).join('');
-                    return '<' + tag2 + '>' + items + '</' + tag2 + '>';
-                }
-                case 'code':
-                    return '<pre><code>' + escH(node.code) + '</code></pre>';
-                case 'blockquote':
-                    return '<blockquote>' + escH(node.text) + '</blockquote>';
-                case 'image':
-                    if (!includeImages) return '';
-                    return '<img src="' + escH(node.src) + '" alt="' + escH(node.alt || '') + '">';
-                case 'table':
-                    return buildTable(node.rows);
-                case 'hr':
-                    return '<hr>';
-                default:
-                    return '';
-            }
-        }
-
-        function buildTable(rows) {
-            if (!rows || !rows.length) return '';
-            var h = '<table><thead><tr>';
-            rows[0].forEach(function (c) { h += '<th>' + escH(c) + '</th>'; });
-            h += '</tr></thead><tbody>';
-            rows.slice(1).forEach(function (row) {
-                h += '<tr>';
-                row.forEach(function (c) { h += '<td>' + escH(c) + '</td>'; });
-                h += '</tr>';
-            });
-            return h + '</tbody></table>';
-        }
-    </script>
+    <!-- External script — required by MV3 CSP (no inline scripts allowed) -->
+    <script src="viewer.js"></script>
 </body>
 
 </html>
